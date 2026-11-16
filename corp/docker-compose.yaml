@@ -1,12 +1,40 @@
-# docker-compose.yml
+version: '3.8'
+
 services:
-  db:
-    image: postgres:16
+  postgres:
+    image: postgres:15-alpine
+    container_name: litellm_db
+    restart: always
     environment:
-      POSTGRES_USER: litellm
-      POSTGRES_PASSWORD: pw
       POSTGRES_DB: litellm
-    ports: ["5432:5432"]
-#    volumes: ["pgdata:/var/lib/postgresql/data"]  # tắt máy không mất
-#volumes:
-#  pgdata:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: litellm
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main
+    container_name: litellm_proxy
+    restart: always
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+    environment:
+      - DATABASE_URL=postgresql://litellm:litellm@postgres:5432/litellm
+      - LITELLM_MASTER_KEY=sk-123456789
+      - STORE_MODEL_IN_DB=True
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
